@@ -1,0 +1,190 @@
+---
+title: "NorthWind Database Query Questions."
+author: "ITZEL SANCHEZ"
+date: "2023-04-30"
+output:
+  html_document: default
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+
+
+```
+The Northwind database represents a fictitious company sales database
+"Northwind", which imports and exports specialty foods worldwide.
+Contains Following Information:
+
+• Providers (Suppliers): information on Northwind's suppliers.
+
+• Clients (Customers): information of clients who purchase products from Northwind.
+
+• Employees: Northwind employee information.
+
+• Products (Products): Northwind product information.
+
+• Carrier (Shipper): information about the courier companies used to
+  send Northwind products.
+  
+• Orders and Order Details (Orders and Order_Detail): record of orders
+  made, as well as the details of said orders.
+
+
+
+
+```{r db}
+library(RSQLite)
+con <- dbConnect(RSQLite::SQLite(), dbname = "C:/Users/anura/Desktop/Rey Castro/Northwind.sqlite")
+
+```
+
+1.Obtain a table with the products and units in Stock of the products that are discontinued. Sort descending by Stock and show the first 5 records.
+
+
+```{r}
+query <- "SELECT ProductName, UnitsInStock 
+          FROM Product 
+          WHERE Discontinued = 1 
+          ORDER BY UnitsInStock DESC 
+          LIMIT 5"
+result <- dbGetQuery(con, query)
+
+# Display the result as a table
+table(result)
+```
+
+2. Build a table with the product name, unit price, and quantity of products bought. Also, add a column where the total sales are calculated.
+```{r}
+sales_table <- dbGetQuery(con, "
+SELECT Product.ProductName, Product.UnitPrice, SUM(OrderDetail.Quantity) AS Quantity, 
+       SUM(OrderDetail.Quantity * OrderDetail.UnitPrice) AS TotalSales
+FROM Product
+INNER JOIN OrderDetail ON Product.ID = OrderDetail.ProductID
+INNER JOIN 'Order' ON OrderDetail.OrderID = 'Order'.ID
+GROUP BY Product.ProductName
+ORDER BY TotalSales DESC")
+
+# Display the result as a table
+sales_table
+```
+3. Show total sales by customer's country of origin.
+
+```{r}
+#Query the database to obtain the desired table
+```
+
+
+```{r}
+query <- "SELECT c.Country, SUM(od.Quantity * od.UnitPrice) AS TotalSales
+          FROM Customer c
+          JOIN [Order] o ON c.Id = o.CustomerId
+          JOIN OrderDetail od ON o.Id = od.OrderId
+          GROUP BY c.Country"
+
+# Retrieve the data and store it in a data frame
+results <- dbGetQuery(con, query)
+
+
+
+results
+```
+
+
+```{r}
+```
+4. Build a table with the product name, unit price, and quantity of products bought. Also, add a column where the total discounts are calculated.
+
+```{r}
+
+query <- "SELECT Product.ProductName, Product.UnitPrice, SUM(OrderDetail.Quantity) as TotalQuantity, 
+       SUM(OrderDetail.Discount) as TotalDiscount, 
+       SUM((Product.UnitPrice * OrderDetail.Quantity) * (1 - OrderDetail.Discount)) as TotalSales
+FROM Product
+INNER JOIN OrderDetail ON Product.Id = OrderDetail.ProductId
+GROUP BY Product.ProductName, Product.UnitPrice"
+
+tables <- dbGetQuery(con, query)
+
+tables
+```
+
+5. Calculate the total number of discounts by product category.
+```{r}
+query <- "SELECT Category.CategoryName, SUM(OrderDetail.Discount) as TotalDiscount
+FROM Category
+INNER JOIN Product ON Category.ID = Product.CategoryId
+INNER JOIN OrderDetail ON Product.ID = OrderDetail.ProductID
+GROUP BY Category.CategoryName"
+
+tables <- dbGetQuery(con, query)
+tables
+```
+6. Suppliers in Spain request to know the demand for their products through the months. The information that will be shared corresponds to the amount of product sold from according to your order date. Show the information graphically.
+```{r}
+query <- "SELECT Product.ProductName, strftime('%m', [Order].OrderDate) as Month, SUM(OrderDetail.Quantity) as TotalQuantity
+FROM [Order]
+INNER JOIN OrderDetail ON [Order].ID = OrderDetail.OrderID
+INNER JOIN Product ON OrderDetail.ProductID = Product.ID
+INNER JOIN Supplier ON Product.SupplierID = Supplier.ID
+WHERE Supplier.Country = 'Spain'
+GROUP BY Product.ProductName, Month
+ORDER BY Month;"
+
+tables <- dbGetQuery(con, query)
+tables
+
+```
+```{r}
+library(ggplot2)
+
+ggplot(data = tables, aes(x = Month, y = TotalQuantity, fill = ProductName)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  labs(x = "Month", y = "Total Quantity", title = "Total Quantity of Products Sold per Month for each Product Name") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+7. Consult the provider that supplies the most products. Discuss your results with the information from the supplier.
+```{r}
+query <- "SELECT Supplier.CompanyName, COUNT(Product.ID) AS TotalProducts
+FROM Supplier
+INNER JOIN Product ON Supplier.ID = Product.SupplierID
+GROUP BY Supplier.ID, Supplier.CompanyName
+ORDER BY TotalProducts DESC
+LIMIT 10;"
+
+tables <- dbGetQuery(con, query)
+tables
+```
+8. Obtain a table showing the name of the product categories and the number of products that each category has. Sort by the number of products and show the first 5 items.
+```{r}
+query <- "SELECT Category.CategoryName, COUNT(*) as ProductCount
+FROM Category
+INNER JOIN Product ON Category.ID = Product.CategoryID
+GROUP BY Category.CategoryName
+ORDER BY ProductCount DESC
+LIMIT 5;
+"
+
+tables <- dbGetQuery(con, query)
+tables
+```
+9.Insightful Analysis
+generate a pie chart of the top 5 product categories by the number of products, with each category represented by a different color.
+```{r}
+library(ggplot2)
+
+result <- dbGetQuery(con, "SELECT Category.CategoryName, COUNT(*) as Count
+FROM Product
+INNER JOIN Category ON Product.CategoryID = Category.ID
+GROUP BY Category.CategoryName
+ORDER BY Count DESC
+LIMIT 5")
+
+ggplot(result, aes(x="", y=Count, fill=CategoryName)) + 
+  geom_bar(stat="identity", width=1, color="white") +
+  coord_polar("y", start=0) +
+  theme_void() +
+  labs(title="Top 5 Product Categories", fill="Category Name", x=NULL, y=NULL) +
+  theme(legend.position="bottom")
+
+
+```
